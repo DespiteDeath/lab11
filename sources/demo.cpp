@@ -3,54 +3,80 @@
 
 namespace po = boost::program_options;
 
-int main(int argc, const char* argv[]) {
-
+void PrintInFile(std::string const& filename)
+{
     std::string text;
-    std::string filename;  //filename including directory
-    std::string configname(std::getenv("HOME"));  //config filename including directory
-    configname += "/.config/demo.cfg";
-
-    po::options_description options("Command line options");
-    options.add_options()
-            ("help,h", "print help message")
-            ("output", po::value<std::string>(), "file to print to");
-
-    std::ifstream config(configname);
-
-    po::variables_map vm;
-    po::store(po::parse_command_line(argc, argv, options), vm);
-    po::store(po::parse_environment(options, "DEMO_"), vm);
-    po::store(po::parse_config_file(config, options), vm);
-    po::notify(vm);
-
-    config.close();
-
-    if (vm.count("help") != 0)
-    {
-        std::cout << options << std::endl;
-        return 1;
+    while(std::cin >> text) {
+        std::ofstream out(filename, std::ios_base::app);
+        print(text, out);
+        out << std::endl;
     }
+}
 
-    std::string tmp;
-    while(std::cin >> tmp)
-    {
-        text += tmp;
-        if(!std::cin.eof())
-        {
-            text += " ";
+bool PrintFromArgs(int argc, char** argv)
+{
+    po::options_description bash_options("Bash options");
+    bash_options.add_options()
+        ("output", po::value<std::string>(), "set output file")
+    ;
+
+    po::variables_map bash_vm;
+    po::store(po::parse_command_line(argc, argv, bash_options), bash_vm);
+    po::notify(bash_vm);
+
+    if (bash_vm.count("output")) {
+        PrintInFile(bash_vm["output"].as<std::string>());
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+bool PrintFromConfig(std::string const& filename)
+{
+    std::string confPath;
+    po::options_description config_options("Configuration");
+    config_options.add_options()
+        ("output", po::value<std::string>(&confPath), "set output file")
+    ;
+
+    std::ifstream configFile(filename);
+
+    po::variables_map config_vm;
+    po::store(po::parse_config_file(configFile, config_options), config_vm);
+    po::notify(config_vm);
+
+    if (config_vm.count("output")) {
+        PrintInFile(config_vm["output"].as<std::string>());
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+bool PrintFromEnvironment()
+{
+    char* envOutput{ std::getenv("DEMO_OUTPUT") };
+    if (envOutput != nullptr) {
+        PrintInFile(envOutput);
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+
+int main(int argc, char** argv)
+{
+    if (!PrintFromArgs(argc, argv)) {
+        if (!PrintFromEnvironment()) {
+            if (!PrintFromConfig( std::string{ std::getenv("HOME") } + "/.config/demo.cfg" )) {
+                PrintInFile("default.log");
+            }
         }
     }
-
-    if(vm.count("output") != 0)
-    {
-        std::ofstream out(vm["output"].as<std::string>());
-        print(text, out);
-        out.close();
-    } else {
-        std::ofstream out("default.log");
-        print(text, out);
-        out.close();
-    }
-
     return 0;
 }
