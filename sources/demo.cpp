@@ -1,82 +1,83 @@
 #include <print.hpp>
 #include <boost/program_options.hpp>
+#include <boost/filesystem.hpp>
+#include <stdlib.h>
 
-namespace po = boost::program_options;
+using namespace boost::program_options;
 
-void PrintInFile(std::string const& filename)
-{
-    std::string text;
-    while(std::cin >> text) {
-        std::ofstream out(filename, std::ios_base::app);
-        print(text, out);
-        out << std::endl;
-    }
-}
+int main(int argc, char** argv) {
+    
+std::string text;
+    
+    try {
+        options_description options_desc{"General options"}; //obj of options_description class
+        //flags:
+        options_desc.add_options()
+        ("help,h", "Show help")
+        ("output,o", value<std::string>(), "Output p");
+        
+        variables_map console;
+        store(parse_command_line(argc, argv, options_desc), console); //parsing console
+        notify(console);
+        
+        if(!getenv("HOME")){
+            std::cout << "HOME not found - error" << std::endl;
+            return 0;
+        }
+           
+        std::string home_path = getenv("HOME");
+        home_path += "/.config/demo.cfg";
 
-bool PrintFromArgs(int argc, char** argv)
-{
-    po::options_description bash_options("Bash options");
-    bash_options.add_options()
-        ("output", po::value<std::string>(), "set output file")
-    ;
-
-    po::variables_map bash_vm;
-    po::store(po::parse_command_line(argc, argv, bash_options), bash_vm);
-    po::notify(bash_vm);
-
-    if (bash_vm.count("output")) {
-        PrintInFile(bash_vm["output"].as<std::string>());
-        return true;
-    }
-    else {
-        return false;
-    }
-}
-
-bool PrintFromConfig(std::string const& filename)
-{
-    std::string confPath;
-    po::options_description config_options("Configuration");
-    config_options.add_options()
-        ("output", po::value<std::string>(&confPath), "set output file")
-    ;
-
-    std::ifstream configFile(filename);
-
-    po::variables_map config_vm;
-    po::store(po::parse_config_file(configFile, config_options), config_vm);
-    po::notify(config_vm);
-
-    if (config_vm.count("output")) {
-        PrintInFile(config_vm["output"].as<std::string>());
-        return true;
-    }
-    else {
-        return false;
-    }
-}
-
-bool PrintFromEnvironment()
-{
-    char* envOutput{ std::getenv("DEMO_OUTPUT") };
-    if (envOutput != nullptr) {
-        PrintInFile(envOutput);
-        return true;
-    }
-    else {
-        return false;
-    }
-}
-
-
-int main(int argc, char** argv)
-{
-    if (!PrintFromArgs(argc, argv)) {
-        if (!PrintFromEnvironment()) {
-            if (!PrintFromConfig( std::string{ std::getenv("HOME") } + "/.config/demo.cfg" )) {
-                PrintInFile("default.log");
+        variables_map file;
+        
+        if(boost::filesystem::exists(home_path)) {
+            store(parse_config_file<char>( home_path.c_str(), options_desc), file);
+        }
+        
+        notify(file);
+    
+        if(console.count("help") || file.count("help")) {
+            std::cout << options_desc << std::endl;
+        }
+        else if(console.count("output")) {
+            std::ofstream out(console["output"].as<std::string>(), std::ios_base::app);
+            while(std::cin >> text) {
+                print(text, out);
+                out << std::endl;
             }
+            out.close();
+        }
+        else if (getenv("DEMO_OUTPUT")) {
+            std::cout << "env" << std::endl;
+            std::string _trAdd = getenv("DEMO_OUTPUT");
+            std::ofstream out(_trAdd, std::ios_base::app);
+            while(std::cin >> text) {
+                print(text, out);
+                out << std::endl;
+            }
+            out.close();
+        }
+        else if (file.count("output")) {
+            std::cout << "Output in >> " << file["output"].as<std::string>() << std::endl;
+            std::ofstream out(file["output"].as<std::string>(), std::ios_base::app);
+            while(std::cin >> text) {
+                print(text, out);
+                out << std::endl;
+            }
+            out.close();
+        }
+        else {
+            std::cout << "DEFAULT" << std::endl;
+            std::ofstream out("default.log", std::ios_base::app);
+            while(std::cin >> text) {
+                print(text, out);
+                out << std::endl;
+            }
+            out.close();
         }
     }
-    return 0;
+    catch (const error & e)
+    {
+        std::cerr << e.what() << std::endl;
+    }
 }
